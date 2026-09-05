@@ -48,25 +48,15 @@
         <div class="spinner"></div>
         Loading PhotonEngine...
     </div>
-    <canvas id="photon-canvas"></canvas>
+    <canvas id="canvas"></canvas>
     <script type="module">
         import init from './pkg/photon_engine.js';
 
         async function run() {
-            const canvas = document.getElementById('photon-canvas');
             const loading = document.getElementById('loading');
 
-            // Set canvas to window size
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-
-            window.addEventListener('resize', () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            });
-
             try {
-                await init(canvas);
+                await init();
                 loading.style.display = 'none';
             } catch (err) {
                 loading.innerHTML = '<div style="color: #ff5252;">Error: ' + err.message + '</div>';
