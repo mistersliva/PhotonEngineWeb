@@ -82,6 +82,8 @@ pub struct Renderer {
     pub normal_bind_group: wgpu::BindGroup,
     pub uniform_bind_groups: Vec<wgpu::BindGroup>,
     pub shadows_enabled: bool,
+    pub depth_texture: wgpu::Texture,
+    pub depth_view: wgpu::TextureView,
 }
 
 impl Renderer {
@@ -185,6 +187,23 @@ impl Renderer {
         log::info!("Creating EguiState...");
         let egui_state = EguiState::new(&gpu.device, &gpu.config, window);
 
+        log::info!("Creating depth texture...");
+        let depth_texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d { width: size.width.max(1), height: size.height.max(1), depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(wgpu::TextureFormat::Depth32Float),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            ..Default::default()
+        });
+
         log::info!("All initialization complete!");
 
         Self {
@@ -211,6 +230,8 @@ impl Renderer {
             normal_bind_group,
             uniform_bind_groups,
             shadows_enabled: true,
+            depth_texture,
+            depth_view,
         }
     }
 
@@ -232,6 +253,22 @@ impl Renderer {
         }
         self.gpu.resize(width, height);
         self.swapchain.resize(width, height);
+
+        self.depth_texture = self.gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        self.depth_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(wgpu::TextureFormat::Depth32Float),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            ..Default::default()
+        });
     }
 
     pub fn draw(
@@ -370,7 +407,14 @@ impl Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -475,6 +519,27 @@ impl Renderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
+        }
+
+        // Egui pass
+        self.egui_state.end_frame_and_upload_textures(&self.gpu.device, &self.gpu.queue);
+        {
+            let mut egui_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Egui Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.egui_state.cmd_draw(&mut egui_pass, width, height, 1.0);
         }
 
         self.gpu.queue.submit(std::iter::once(encoder.finish()));

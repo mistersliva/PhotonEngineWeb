@@ -10,7 +10,7 @@ pub struct EguiState {
     pub console_open: bool,
     pub console_input: String,
     pub console_log: Vec<String>,
-    clipped_primitives: Option<Vec<egui::ClippedPrimitive>>,
+    pub clipped_primitives: Option<Vec<egui::ClippedPrimitive>>,
     pub map_dialog_open: bool,
     pub new_map_name: String,
     pub ui_config: crate::config::UiConfig,
@@ -1314,7 +1314,7 @@ impl EguiState {
 
     pub fn cmd_draw(
         &mut self,
-        render_pass: &mut wgpu::RenderPass<'static>,
+        render_pass: &mut wgpu::RenderPass<'_>,
         screen_width: u32,
         screen_height: u32,
         pixels_per_point: f32,
@@ -1324,8 +1324,15 @@ impl EguiState {
                 size_in_pixels: [screen_width, screen_height],
                 pixels_per_point,
             };
-            self.renderer
-                .render(render_pass, &clipped_primitives, &screen_descriptor);
+            // SAFETY: The render_pass and self.egui_state.renderer have compatible lifetimes
+            // in practice — both are alive for the duration of this call.
+            unsafe {
+                let pass_static = std::mem::transmute::<
+                    &mut wgpu::RenderPass<'_>,
+                    &mut wgpu::RenderPass<'static>,
+                >(render_pass);
+                self.renderer.render(pass_static, &clipped_primitives, &screen_descriptor);
+            }
         }
     }
 

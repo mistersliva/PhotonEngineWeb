@@ -227,6 +227,12 @@ impl ApplicationHandler for App {
         self.current_map = String::new();
     }
 
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         if let (Some(renderer), Some(window)) = (&mut self.renderer, &self.window) {
             let consumed = renderer.egui_state.handle_event(window, &event);
