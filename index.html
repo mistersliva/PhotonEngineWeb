@@ -48,19 +48,26 @@
         <div class="spinner"></div>
         Loading PhotonEngine...
     </div>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" width="1280" height="720"></canvas>
     <script type="module">
         import init from './pkg/photon_engine.js';
 
         async function run() {
+            const canvas = document.getElementById('canvas');
             const loading = document.getElementById('loading');
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            console.log('[PhotonEngine] Canvas sized to', canvas.width, 'x', canvas.height);
 
             try {
                 await init();
                 loading.style.display = 'none';
+                console.log('[PhotonEngine] Init complete');
             } catch (err) {
+                console.error('[PhotonEngine] Init failed:', err);
                 loading.innerHTML = '<div style="color: #ff5252;">Error: ' + err.message + '</div>';
-                console.error(err);
             }
         }
 

@@ -1,3 +1,5 @@
+use log::info;
+
 pub struct GpuState {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -8,8 +10,15 @@ pub struct GpuState {
 impl GpuState {
     pub async fn new(window: &winit::window::Window) -> Self {
         let size = window.inner_size();
+
+        let backends = if cfg!(target_arch = "wasm32") {
+            wgpu::Backends::GL
+        } else {
+            wgpu::Backends::all()
+        };
+
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends,
             ..Default::default()
         });
 
