@@ -84,6 +84,8 @@ pub struct Renderer {
     pub shadows_enabled: bool,
     pub depth_texture: wgpu::Texture,
     pub depth_view: wgpu::TextureView,
+    #[cfg(target_arch = "wasm32")]
+    pub draw_call_count: u32,
 }
 
 impl Renderer {
@@ -232,6 +234,8 @@ impl Renderer {
             shadows_enabled: true,
             depth_texture,
             depth_view,
+            #[cfg(target_arch = "wasm32")]
+            draw_call_count: 0,
         }
     }
 
@@ -283,6 +287,13 @@ impl Renderer {
         flashlight_on: bool,
         _screenshot: bool,
     ) -> Option<()> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.draw_call_count += 1;
+            if self.draw_call_count <= 3 {
+                web_sys::console::log_1(&format!("PhotonEngine: draw() called #{}", self.draw_call_count).into());
+            }
+        }
         if width == 0 || height == 0 {
             return None;
         }

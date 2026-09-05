@@ -57,8 +57,10 @@ pub struct App {
     accel: f32,
     last_mouse_dx: f32,
     pub map_manager: MapManager,
-    pub current_map: String,
+    pub     current_map: String,
     audio: crate::audio::AudioManager,
+    #[cfg(target_arch = "wasm32")]
+    wasm_frame_count: u32,
 }
 
 struct FpsCounter {
@@ -126,6 +128,8 @@ impl App {
             map_manager: MapManager::new(),
             current_map: String::new(),
             audio: crate::audio::AudioManager::new(),
+            #[cfg(target_arch = "wasm32")]
+            wasm_frame_count: 0,
         }
     }
 
@@ -192,6 +196,9 @@ impl ApplicationHandler for App {
         if self.window.is_some() {
             return;
         }
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&"PhotonEngine: resumed() called".into());
+
         let attrs = Window::default_attributes()
             .with_title("PhotonEngine")
             .with_inner_size(winit::dpi::LogicalSize::new(1280, 720));
@@ -208,7 +215,13 @@ impl ApplicationHandler for App {
         };
 
         let window = event_loop.create_window(attrs).unwrap();
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&"PhotonEngine: window created".into());
+
         self.renderer = Some(pollster::block_on(Renderer::new(&window)));
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&"PhotonEngine: renderer created".into());
+
         self.window = Some(window);
 
         if let Some(renderer) = &mut self.renderer {
@@ -337,6 +350,13 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    self.wasm_frame_count += 1;
+                    if self.wasm_frame_count <= 3 {
+                        web_sys::console::log_1(&format!("PhotonEngine: RedrawRequested #{}", self.wasm_frame_count).into());
+                    }
+                }
                 #[cfg(not(target_arch = "wasm32"))]
                 if self.settings_fps_limit > 0 {
                     let target_dt = 1.0 / self.settings_fps_limit as f32;
