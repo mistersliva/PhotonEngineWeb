@@ -1,0 +1,4 @@
+[build]
+# Default target for native builds
+# For WASM, use: wasm-pack build --target web
+# Or: cargo build --target wasm32-unknown-unknown
