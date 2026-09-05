@@ -61,9 +61,6 @@
 
             console.log('[PhotonEngine] Canvas sized to', canvas.width, 'x', canvas.height);
 
-            const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-            console.log('[PhotonEngine] WebGL context:', gl ? 'YES (' + (gl instanceof WebGL2RenderingContext ? 'WebGL2' : 'WebGL1') + ')' : 'NO');
-
             try {
                 await init();
                 loading.style.display = 'none';
@@ -72,17 +69,6 @@
                 console.error('[PhotonEngine] Init failed:', err);
                 loading.innerHTML = '<div style="color: #ff5252;">Error: ' + err.message + '</div>';
             }
-
-            function checkCanvas() {
-                const ctx2 = canvas.getContext('webgl2') || canvas.getContext('webgl');
-                if (ctx2) {
-                    const pixels = new Uint8Array(4);
-                    ctx2.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, ctx2.RGBA, ctx2.UNSIGNED_BYTE, pixels);
-                    console.log('[PhotonEngine] Center pixel:', Array.from(pixels));
-                }
-                requestAnimationFrame(checkCanvas);
-            }
-            setTimeout(() => requestAnimationFrame(checkCanvas), 2000);
         }
 
         run();
