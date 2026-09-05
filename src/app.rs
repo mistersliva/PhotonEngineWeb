@@ -17,6 +17,10 @@ use winit::window::{Window, WindowId};
 use wasm_bindgen::JsCast;
 
 use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+#[cfg(target_arch = "wasm32")]
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowMode {
@@ -61,6 +65,8 @@ pub struct App {
     audio: crate::audio::AudioManager,
     #[cfg(target_arch = "wasm32")]
     wasm_frame_count: u32,
+    #[cfg(target_arch = "wasm32")]
+    pending_renderer: Rc<RefCell<Option<Renderer>>>,
 }
 
 struct FpsCounter {
@@ -130,6 +136,8 @@ impl App {
             audio: crate::audio::AudioManager::new(),
             #[cfg(target_arch = "wasm32")]
             wasm_frame_count: 0,
+            #[cfg(target_arch = "wasm32")]
+            pending_renderer: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -215,19 +223,36 @@ impl ApplicationHandler for App {
         };
 
         let window = event_loop.create_window(attrs).unwrap();
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&"PhotonEngine: window created".into());
-
-        self.renderer = Some(pollster::block_on(Renderer::new(&window)));
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&"PhotonEngine: renderer created".into());
-
         self.window = Some(window);
 
-        if let Some(renderer) = &mut self.renderer {
-            renderer.egui_state.init_video();
-            renderer.shadows_enabled = self.shadows_enabled;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let window = self.window.as_ref().unwrap();
+            self.renderer = Some(pollster::block_on(Renderer::new(window)));
         }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            web_sys::console::log_1(&"PhotonEngine: window created, spawning async renderer init".into());
+            let pending = self.pending_renderer.clone();
+            let shadows = self.shadows_enabled;
+
+            let window_ref: &'static winit::window::Window = unsafe {
+                std::mem::transmute::<&winit::window::Window, &'static winit::window::Window>(
+                    self.window.as_ref().unwrap(),
+                )
+            };
+
+            wasm_bindgen_futures::spawn_local(async move {
+                web_sys::console::log_1(&"PhotonEngine: async Renderer::new starting".into());
+                let mut renderer = Renderer::new(window_ref).await;
+                renderer.egui_state.init_video();
+                renderer.shadows_enabled = shadows;
+                *pending.borrow_mut() = Some(renderer);
+                web_sys::console::log_1(&"PhotonEngine: async Renderer::new COMPLETE".into());
+            });
+        }
+
         self.audio.set_volume(self.settings_volume);
         let size = self.window.as_ref().map(|w| w.inner_size());
         if let Some(s) = size {
@@ -241,6 +266,17 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            if self.renderer.is_none() {
+                let mut pending = self.pending_renderer.borrow_mut();
+                if let Some(renderer) = pending.take() {
+                    drop(pending);
+                    self.renderer = Some(renderer);
+                    web_sys::console::log_1(&"PhotonEngine: renderer picked up from pending".into());
+                }
+            }
+        }
         if let Some(window) = &self.window {
             window.request_redraw();
         }
